@@ -30,29 +30,29 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('profile', [AuthController::class, 'profile']);
     Route::post('logout', [AuthController::class, 'logout']);
-});
 
- 
-// -----------------------------
-// Routes personnalisées Pointage
-// -----------------------------
-Route::get('pointages/present', [PointageController::class, 'present']);
-Route::get('pointages/employe/{id}', [PointageController::class, 'historique'])->whereNumber('id');
-Route::get('pointages/employe/{id}/dernier', [PointageController::class, 'dernierPointage'])->whereNumber('id');
-Route::get('pointages/portique/{id}', [PointageController::class, 'parPortique'])->whereNumber('id');
-Route::get('pointages/presence', [PointageController::class, 'presenceParJour']);
-// Endpoint pour les MAC autorisés
+
+
+    // -----------------------------
+    // Routes personnalisées Pointage
+    // -----------------------------
+    Route::get('pointages/present', [PointageController::class, 'present']);
+    Route::get('pointages/employe/{id}', [PointageController::class, 'historique'])->whereNumber('id');
+    Route::get('pointages/employe/{id}/dernier', [PointageController::class, 'dernierPointage'])->whereNumber('id');
+    Route::get('pointages/portique/{id}', [PointageController::class, 'parPortique'])->whereNumber('id');
+    Route::get('pointages/presence', [PointageController::class, 'presenceParJour']);
+    // Endpoint pour les MAC autorisés
     Route::get('portiques/authorized', [PointageController::class, 'authorizedPortiques']);
-// -----------------------------
-// Routes APIResource (CRUD)
-// -----------------------------
-Route::apiResource('services', ServiceController::class);
-Route::apiResource('postes', PosteController::class);
-Route::apiResource('employes', EmployeController::class);
-Route::apiResource('badges', BadgeController::class);
-Route::apiResource('portiques', PortiqueController::class);
-Route::apiResource('pointages', PointageController::class)->whereNumber('pointage');
-
+    // -----------------------------
+    // Routes APIResource (CRUD)
+    // -----------------------------
+    Route::apiResource('services', ServiceController::class);
+    Route::apiResource('postes', PosteController::class);
+    Route::apiResource('employes', EmployeController::class);
+    Route::apiResource('badges', BadgeController::class);
+    Route::apiResource('portiques', PortiqueController::class);
+    Route::apiResource('pointages', PointageController::class)->whereNumber('pointage');
+});
 // -----------------------------
 // Optionnel : info utilisateur
 // -----------------------------

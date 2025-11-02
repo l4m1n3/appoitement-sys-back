@@ -30,7 +30,7 @@ class AuthController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
             ]);
-              $token = $user->createToken('auth_token')->plainTextToken;
+            $token = $user->createToken('auth_token')->plainTextToken;
             return response()->json(['message' => 'User registered successfully', 'token' => $token, 'user' => $user], 201);
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
@@ -39,51 +39,49 @@ class AuthController extends Controller
     }
 
 
-public function login(Request $request)
-{
-    try {
-        // Validation des données
-        $credentials = $request->validate([
-            'email' => 'required|string|email',
-            'password' => 'required|string',
-        ]);
-
-        // Tentative d'authentification
-        if (!Auth::attempt($credentials)) {
-            throw ValidationException::withMessages([
-                'email' => ['Adresse e-mail ou mot de passe incorrect.'],
+    public function login(Request $request)
+    {
+        try {
+            // Validation des données
+            $credentials = $request->validate([
+                'email' => 'required|string|email',
+                'password' => 'required|string',
             ]);
+
+            // Tentative d'authentification
+            if (!Auth::attempt($credentials)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Adresse e-mail ou mot de passe incorrect.'],
+                ]);
+            }
+
+            // Récupération de l'utilisateur connecté
+            $user = $request->user();
+            $token = $user->createToken('auth_token')->plainTextToken;
+            // Retour JSON en cas de succès
+            return response()->json([
+                'message' => 'Connexion réussie',
+                'user' => $user,
+                'token' => $token
+            ]);
+        } catch (ValidationException $ve) {
+            // Retour JSON pour erreurs de validation ou d'identifiants
+            return response()->json([
+                'message' => 'Erreur de validation',
+                'errors' => $ve->errors()
+            ], 422);
+        } catch (\Throwable $th) {
+            // Log de l'erreur pour debug
+            Log::error('Erreur lors de la connexion : ' . $th->getMessage(), [
+                'trace' => $th->getTraceAsString()
+            ]);
+
+            // Retour JSON pour erreurs serveur
+            return response()->json([
+                'message' => 'Une erreur est survenue, veuillez réessayer plus tard.'
+            ], 500);
         }
-
-        // Récupération de l'utilisateur connecté
-        $user = $request->user();
-  $token = $user->createToken('auth_token')->plainTextToken;
-        // Retour JSON en cas de succès
-        return response()->json([
-            'message' => 'Connexion réussie',
-            'user' => $user,
-            'token'=>$token
-        ]);
-
-    } catch (ValidationException $ve) {
-        // Retour JSON pour erreurs de validation ou d'identifiants
-        return response()->json([
-            'message' => 'Erreur de validation',
-            'errors' => $ve->errors()
-        ], 422);
-
-    } catch (\Throwable $th) {
-        // Log de l'erreur pour debug
-        Log::error('Erreur lors de la connexion : '.$th->getMessage(), [
-            'trace' => $th->getTraceAsString()
-        ]);
-
-        // Retour JSON pour erreurs serveur
-        return response()->json([
-            'message' => 'Une erreur est survenue, veuillez réessayer plus tard.'
-        ], 500);
     }
-}
 
 
     public function logout(Request $request)
@@ -91,5 +89,4 @@ public function login(Request $request)
         $request->user()->tokens()->delete();
         return response()->json(['message' => 'Logged out']);
     }
-
 }

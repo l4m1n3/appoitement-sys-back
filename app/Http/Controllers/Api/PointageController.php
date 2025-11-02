@@ -28,80 +28,100 @@ class PointageController extends Controller
     // public function store(Request $request)
     // {
     //     try {
-    //         // Exemple de validation si tu veux la réactiver plus tard
-    //         // $validated = $request->validate([
-    //         //     'portique_id' => 'required|exists:portiques,id',
-    //         //     'type' => 'required|in:entrée,sortie',
-    //         // ]);
-
-    //         // ⚙️ Récupérer un badge lié à l’employé concerné
-    //         // (à adapter selon ta logique)
-    //         $badge = Badge::where('employe_id', $request->employe_id)->first();
-    //         $date_heure = now();
-    //         if (!$badge) {
-    //             return response()->json([
-    //                 'error' => 'Aucun badge trouvé pour cet employé.'
-    //             ], 404);
-    //         }
-
-    //         // ✅ Créer le pointage avec badge_id inclus
-    //         $pointage = Pointage::create([
-    //             'employe_id' => $request->employe_id,
-    //             'portique_id' => $request->portique_id,
-    //             'badge_id' => $badge->id,
-    //             'type' => $request->type,
-    //             'date_heure' => $date_heure,
+    //         $request->validate([
+    //             // 'portique_mac' => 'required|string',
+    //             'type' => 'required|in:entrée,sortie',
     //         ]);
 
-    //         // Charger les relations
-    //         $pointage->load(['badge.employe', 'portique']);
+    //         // 1. Récupérer l'employé connecté
+    //         $employe = Auth::user(); // ou via token
+    //         if (!$employe) {
+    //             return response()->json(['error' => 'Non authentifié'], 401);
+    //         }
 
+    //         // 2. Trouver le portique par MAC
+    //         // $portique = \App\Models\Portique::where('mac_address', $request->portique_mac)->first();
+    //         // if (!$portique) {
+    //         //     return response()->json(['error' => 'Portique non autorisé'], 403);
+    //         // }
+
+    //         // 3. Trouver le badge de l'employé
+    //         $badge = Badge::where('employe_id', $employe->id)->first();
+    //         if (!$badge) {
+    //             return response()->json(['error' => 'Aucun badge assigné'], 400);
+    //         }
+
+    //         // 4. Créer le pointage
+    //         $pointage = Pointage::create([
+    //             'employe_id' => $employe->id,
+    //             // 'portique_id' => $portique->id,
+    //             'badge_id' => $badge->id,
+    //             'type' => $request->type,
+    //             'date_heure' => now(),
+    //         ]);
+
+    //         $pointage->load(['badge.employe', 'portique']);
     //         return response()->json($pointage, 201);
-    //     } catch (\Exception $e) {
-    //         Log::error('Erreur lors de la création du pointage: ' . $e->getMessage());
-    //         return response()->json([
-    //             'error' => 'Erreur lors de la création du pointage',
-    //             'message' => $e->getMessage()
-    //         ], 500);
+    //     } catch (\Throwable $th) {
+    //         Log::error($th->getMessage());
+    //         return response()->json(['message' => 'User pointage failed'], 500);
     //     }
     // }
-public function store(Request $request)
-{
-    $request->validate([
-        'portique_mac' => 'required|string',
-        'type' => 'required|in:entrée,sortie',
-    ]);
+    public function store(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:entrée,sortie',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
 
-    // 1. Récupérer l'employé connecté
-    $employe = Auth::user(); // ou via token
-    if (!$employe) {
-        return response()->json(['error' => 'Non authentifié'], 401);
+        $employe = Auth::user();
+        if (!$employe) {
+            return response()->json(['error' => 'Non authentifié'], 401);
+        }
+
+        $badge = Badge::where('employe_id', $employe->id)->first();
+        if (!$badge) {
+            return response()->json(['error' => 'Aucun badge assigné'], 400);
+        }
+
+        // Coordonnées de l'entreprise et tolérance
+        $entrepriseLat = 13.5116; // exemple
+        $entrepriseLng = 2.1254;
+        $rayon = 100; // mètres
+
+        // Calcul distance
+        $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
+
+        if ($distance > $rayon) {
+            return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
+        }
+
+        // Créer le pointage
+        $pointage = Pointage::create([
+            'employe_id' => $employe->id,
+            'badge_id' => $badge->id,
+            'type' => $request->type,
+            'date_heure' => now(),
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude
+        ]);
+
+        return response()->json($pointage, 201);
     }
 
-    // 2. Trouver le portique par MAC
-    $portique = \App\Models\Portique::where('mac_address', $request->portique_mac)->first();
-    if (!$portique) {
-        return response()->json(['error' => 'Portique non autorisé'], 403);
+    // Méthode utilitaire pour calculer la distance en mètres
+    private function distanceMetres($lat1, $lng1, $lat2, $lng2)
+    {
+        $earthRadius = 6371000; // m
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLng / 2) * sin($dLng / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $earthRadius * $c;
     }
-
-    // 3. Trouver le badge de l'employé
-    $badge = Badge::where('employe_id', $employe->id)->first();
-    if (!$badge) {
-        return response()->json(['error' => 'Aucun badge assigné'], 400);
-    }
-
-    // 4. Créer le pointage
-    $pointage = Pointage::create([
-        'employe_id' => $employe->id,
-        'portique_id' => $portique->id,
-        'badge_id' => $badge->id,
-        'type' => $request->type,
-        'date_heure' => now(),
-    ]);
-
-    $pointage->load(['badge.employe', 'portique']);
-    return response()->json($pointage, 201);
-}
 
     public function show(Pointage $pointage)
     {
@@ -125,7 +145,7 @@ public function store(Request $request)
         $pointage->delete();
         return response()->json(null, 204);
     }
-   
+
     public function present()
     {
         $present = Employe::whereHas('pointages', function ($query) {

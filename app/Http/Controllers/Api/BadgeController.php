@@ -7,7 +7,7 @@ use App\Models\Badge;
 use Illuminate\Http\Request;
 
 class BadgeController extends Controller
-{ 
+{
     public function index()
     {
         return response()->json(Badge::with('employe')->get());
@@ -15,12 +15,19 @@ class BadgeController extends Controller
 
     public function store(Request $request)
     {
-        $badge = Badge::create($request->validate([
+        $request->validate([
             'employe_id' => 'required|exists:employes,id',
-            'code_unique' => 'required|string',
+            // 'code_unique' => 'required|string',
             'type' => 'required',
             'actif' => 'boolean'
-        ]));
+        ]);
+        $code_unique = '2024INF';
+        $badge = Badge::create([
+            'employe_id' => $request->employe_id,
+            'code_unique' => $code_unique,
+            'type' => $request->type,
+            'actif' => $request->actif
+        ]);
 
         return response()->json($badge, 201);
     }

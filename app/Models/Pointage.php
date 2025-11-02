@@ -12,10 +12,11 @@ class Pointage extends Model
     protected $fillable = [
         'employe_id',
         'badge_id',
-        'portique_id',
         'date_heure',
         'type',
-        'source'
+        'latitude',
+        'longitude',
+        'source',
     ];
 
     // 🔗 Relations
