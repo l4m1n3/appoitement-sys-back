@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pointages/presence', [PointageController::class, 'presenceParJour']);
     // Endpoint pour les MAC autorisés
     Route::get('portiques/authorized', [PointageController::class, 'authorizedPortiques']);
+    // Route::post('pointages')
     // -----------------------------
     // Routes APIResource (CRUD)
     // -----------------------------
@@ -52,7 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('badges', BadgeController::class);
     Route::apiResource('portiques', PortiqueController::class);
     Route::apiResource('pointages', PointageController::class)->whereNumber('pointage');
-});
+    });
 // -----------------------------
 // Optionnel : info utilisateur
 // -----------------------------

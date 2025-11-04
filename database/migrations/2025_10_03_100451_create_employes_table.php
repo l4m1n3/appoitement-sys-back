@@ -17,6 +17,7 @@ return new class extends Migration
             $table->date('date_naissance');
             $table->foreignId('service_id')->constrained('services')->onDelete('cascade');
             $table->foreignId('poste_id')->constrained('postes')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
 
             $table->timestamps();
         });

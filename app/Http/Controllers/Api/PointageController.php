@@ -6,181 +6,249 @@ use App\Http\Controllers\Controller;
 use App\Models\Badge;
 use App\Models\Pointage;
 use App\Models\Employe;
+use App\Models\Portique;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage as StorageBase;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\Validator as ValidatorBase;
 use Illuminate\Support\Facades\Log;
 
 class PointageController extends Controller
 {
+    /**
+     * Liste tous les pointages avec relations
+     */
     public function index()
     {
         return response()->json(Pointage::with(['badge.employe', 'portique'])->get());
     }
 
+    /**
+     * Crée un nouveau pointage avec vérification de position GPS et doublons
+     */
     // public function store(Request $request)
     // {
-    //     try {
-    //         $request->validate([
-    //             // 'portique_mac' => 'required|string',
-    //             'type' => 'required|in:entrée,sortie',
-    //         ]);
+    //     $request->validate([
+    //         'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
+    //         'latitude' => 'required|numeric',
+    //         'longitude' => 'required|numeric',
+    //     ]);
 
-    //         // 1. Récupérer l'employé connecté
-    //         $employe = Auth::user(); // ou via token
-    //         if (!$employe) {
-    //             return response()->json(['error' => 'Non authentifié'], 401);
-    //         }
-
-    //         // 2. Trouver le portique par MAC
-    //         // $portique = \App\Models\Portique::where('mac_address', $request->portique_mac)->first();
-    //         // if (!$portique) {
-    //         //     return response()->json(['error' => 'Portique non autorisé'], 403);
-    //         // }
-
-    //         // 3. Trouver le badge de l'employé
-    //         $badge = Badge::where('employe_id', $employe->id)->first();
-    //         if (!$badge) {
-    //             return response()->json(['error' => 'Aucun badge assigné'], 400);
-    //         }
-
-    //         // 4. Créer le pointage
-    //         $pointage = Pointage::create([
-    //             'employe_id' => $employe->id,
-    //             // 'portique_id' => $portique->id,
-    //             'badge_id' => $badge->id,
-    //             'type' => $request->type,
-    //             'date_heure' => now(),
-    //         ]);
-
-    //         $pointage->load(['badge.employe', 'portique']);
-    //         return response()->json($pointage, 201);
-    //     } catch (\Throwable $th) {
-    //         Log::error($th->getMessage());
-    //         return response()->json(['message' => 'User pointage failed'], 500);
+    //     $employe = Auth::user();
+    //     if (!$employe) {
+    //         return response()->json(['error' => 'Non authentifié'], 401);
     //     }
+
+    //     // Récupérer le badge assigné à l'employé
+    //     $badge = Badge::where('employe_id', $employe->id)->first();
+    //     if (!$badge) {
+    //         return response()->json(['error' => 'Aucun badge assigné à cet employé'], 400);
+    //     }
+
+    //     // Vérifier dernier pointage pour éviter doublons
+    //     $dernier = Pointage::where('employe_id', $employe->id)->latest('date_heure')->first();
+    //     $type = strtoupper($request->type);
+
+    //     if ($dernier && $dernier->type === $type) {
+    //         return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
+    //     }
+
+    //     // Coordonnées de l’entreprise (exemple)
+    //     $entrepriseLat = 13.5797;
+    //     $entrepriseLng = 2.0991;
+    //     $rayon = 15000000; // mètres autorisés
+
+    //     // Calcul de distance
+    //     $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
+
+    //     if ($distance > $rayon) {
+    //         Log::warning("Tentative de pointage hors zone", [
+    //             'employe_id' => $employe->id,
+    //             'distance_m' => round($distance, 2),
+    //             'coordonnees' => [$request->latitude, $request->longitude],
+    //         ]);
+
+    //         return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
+    //     }
+
+    //     // Enregistrement du pointage
+    //     $pointage = Pointage::create([
+    //         'employe_id' => $employe->id,
+    //         'badge_id' => $badge->id,
+    //         'type' => $type,
+    //         'date_heure' => now(),
+    //         'latitude' => $request->latitude,
+    //         'longitude' => $request->longitude,
+    //     ]);
+
+    //     return response()->json([
+    //         'message' => 'Pointage enregistré avec succès',
+    //         'data' => $pointage,
+    //     ], 201);
     // }
-    public function store(Request $request)
-    {
-        $request->validate([
-            'type' => 'required|in:entrée,sortie',
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
-        ]);
+public function store(Request $request)
+{
+    $request->validate([
+        'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
+        'latitude' => 'required|numeric',
+        'longitude' => 'required|numeric',
+    ]);
 
-        $employe = Auth::user();
-        if (!$employe) {
-            return response()->json(['error' => 'Non authentifié'], 401);
-        }
-
-        $badge = Badge::where('employe_id', $employe->id)->first();
-        if (!$badge) {
-            return response()->json(['error' => 'Aucun badge assigné'], 400);
-        }
-
-        // Coordonnées de l'entreprise et tolérance
-        $entrepriseLat = 13.5116; // exemple
-        $entrepriseLng = 2.1254;
-        $rayon = 100; // mètres
-
-        // Calcul distance
-        $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
-
-        if ($distance > $rayon) {
-            return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
-        }
-
-        // Créer le pointage
-        $pointage = Pointage::create([
-            'employe_id' => $employe->id,
-            'badge_id' => $badge->id,
-            'type' => $request->type,
-            'date_heure' => now(),
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude
-        ]);
-
-        return response()->json($pointage, 201);
+    $employe = Auth::user();
+    if (!$employe) {
+        return response()->json(['error' => 'Non authentifié'], 401);
     }
 
-    // Méthode utilitaire pour calculer la distance en mètres
+    // Badge assigné à l'employé
+    $badge = Badge::where('employe_id', $employe->id)->first();
+    if (!$badge) {
+        return response()->json(['error' => 'Aucun badge assigné à cet employé'], 400);
+    }
+
+    // Normalisation du type pour PostgreSQL
+    $typeMap = [
+        'ENTREE' => 'entrée',
+        'entree' => 'entrée',
+        'SORTIE' => 'sortie',
+        'sortie' => 'sortie',
+    ];
+    $type = $typeMap[$request->type];
+
+    // Vérifier dernier pointage
+    $dernier = Pointage::where('employe_id', $employe->id)->latest('date_heure')->first();
+    if ($dernier && $dernier->type === $type) {
+        return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
+    }
+
+    // Coordonnées de l’entreprise
+    $entrepriseLat = 13.5797;
+    $entrepriseLng = 2.0991;
+    $rayon = 15000000; // mètres autorisés
+
+    // Calcul de distance
+    $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
+    if ($distance > $rayon) {
+        return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
+    }
+
+    // Enregistrement du pointage
+    $pointage = Pointage::create([
+        'employe_id' => $employe->id,
+        'badge_id' => $badge->id,
+        'type' => $type,
+        'date_heure' => now(),
+        'latitude' => $request->latitude,
+        'longitude' => $request->longitude,
+    ]);
+
+    return response()->json([
+        'message' => 'Pointage enregistré avec succès',
+        'data' => $pointage,
+    ], 201);
+}
+
+    /**
+     * Calcule la distance entre deux coordonnées (en mètres)
+     */
     private function distanceMetres($lat1, $lng1, $lat2, $lng2)
     {
-        $earthRadius = 6371000; // m
+        $earthRadius = 6371000; // rayon terrestre (m)
         $dLat = deg2rad($lat2 - $lat1);
         $dLng = deg2rad($lng2 - $lng1);
-        $a = sin($dLat / 2) * sin($dLat / 2) +
+
+        $a = sin($dLat / 2) ** 2 +
             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-            sin($dLng / 2) * sin($dLng / 2);
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-        return $earthRadius * $c;
+            sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
+    /**
+     * Affiche les détails d’un pointage
+     */
     public function show(Pointage $pointage)
     {
         return response()->json($pointage->load(['badge.employe', 'portique']));
     }
 
+    /**
+     * Met à jour un pointage existant
+     */
     public function update(Request $request, Pointage $pointage)
     {
-        $pointage->update($request->validate([
+        $validated = $request->validate([
             'badge_id' => 'required|exists:badges,id',
-            'portique_id' => 'required|exists:portiques,id',
+            'portique_id' => 'nullable|exists:portiques,id',
             'date_heure' => 'required|date',
             'type' => 'required|in:ENTREE,SORTIE',
-        ]));
+        ]);
 
+        $pointage->update($validated);
         return response()->json($pointage);
     }
 
+    /**
+     * Supprime un pointage
+     */
     public function destroy(Pointage $pointage)
     {
         $pointage->delete();
-        return response()->json(null, 204);
+        return response()->json(['message' => 'Pointage supprimé'], 204);
     }
 
+    /**
+     * Liste des employés actuellement présents
+     */
     public function present()
     {
-        $present = Employe::whereHas('pointages', function ($query) {
-            $query->latest('date_heure');
-        })->get()->map(function ($employe) {
-            $dernierPointage = $employe->pointages->sortByDesc('date_heure')->first();
-            return [
-                'employe' => $employe,
-                'dernier_pointage' => $dernierPointage,
-            ];
-        });
+        $present = Employe::whereHas('pointages')
+            ->get()
+            ->map(function ($employe) {
+                $dernierPointage = $employe->pointages->sortByDesc('date_heure')->first();
+                return [
+                    'employe' => $employe,
+                    'dernier_pointage' => $dernierPointage,
+                ];
+            })
+            ->filter(fn($item) => $item['dernier_pointage'] && $item['dernier_pointage']->type === 'ENTREE');
 
         return response()->json($present->values());
     }
 
+    /**
+     * Historique complet d’un employé
+     */
     public function historique($employe_id)
     {
-        $pointages = \App\Models\Pointage::with(['badge', 'portique'])
-            ->whereHas('badge', function ($q) use ($employe_id) {
-                $q->where('employe_id', $employe_id);
-            })
-            ->orderBy('date_heure', 'desc')
+        $user = Auth::user();
+
+        // Sécurité : l’utilisateur ne peut consulter que son propre historique
+        if ($user->id != $employe_id && !$user->is_admin) {
+            return response()->json(['error' => 'Accès refusé'], 403);
+        }
+
+        $pointages = Pointage::with(['badge', 'portique'])
+            ->whereHas('badge', fn($q) => $q->where('employe_id', $employe_id))
+            ->orderByDesc('date_heure')
             ->get();
 
         return response()->json($pointages);
     }
+
+    /**
+     * Dernier pointage d’un employé
+     */
     public function dernierPointage($employe_id)
     {
-        $pointage = \App\Models\Pointage::with(['badge', 'portique'])
+        $pointage = Pointage::with(['badge'])
             ->whereHas('badge', fn($q) => $q->where('employe_id', $employe_id))
             ->latest('date_heure')
             ->first();
 
         return response()->json($pointage);
     }
+
+    /**
+     * Pointages par portique et période donnée
+     */
     public function parPortique(Request $request, $portique_id)
     {
         $request->validate([
@@ -188,7 +256,7 @@ class PointageController extends Controller
             'fin' => 'required|date|after_or_equal:debut',
         ]);
 
-        $pointages = \App\Models\Pointage::with(['badge.employe'])
+        $pointages = Pointage::with(['badge.employe'])
             ->where('portique_id', $portique_id)
             ->whereBetween('date_heure', [$request->debut, $request->fin])
             ->orderBy('date_heure')
@@ -196,12 +264,16 @@ class PointageController extends Controller
 
         return response()->json($pointages);
     }
+
+    /**
+     * Présence quotidienne
+     */
     public function presenceParJour(Request $request)
     {
         $request->validate(['date' => 'required|date']);
         $date = $request->date;
 
-        $pointages = \App\Models\Employe::with('pointages')->get()->filter(function ($employe) use ($date) {
+        $pointages = Employe::with('pointages')->get()->filter(function ($employe) use ($date) {
             $dernier = $employe->pointages
                 ->where('date_heure', '<=', $date . ' 23:59:59')
                 ->sortByDesc('date_heure')
@@ -214,5 +286,14 @@ class PointageController extends Controller
             'present_count' => $pointages->count(),
             'employes' => $pointages->values()
         ]);
+    }
+
+    /**
+     * Liste des portiques autorisés (actifs)
+     */
+    public function authorizedPortiques()
+    {
+        $portiques = Portique::where('is_active', true)->get(['id', 'nom', 'mac_address']);
+        return response()->json($portiques);
     }
 }

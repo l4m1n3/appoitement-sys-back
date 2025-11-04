@@ -16,7 +16,7 @@ class Badge extends Model
         'actif'
     ];
 
-    // 🔗 Relations
+    // 🔗 Relations 
     public function employe()
     {
         return $this->belongsTo(Employe::class);

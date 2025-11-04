@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Badge;
 use Illuminate\Http\Request;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Str;
 
 class BadgeController extends Controller
 {
@@ -13,24 +15,38 @@ class BadgeController extends Controller
         return response()->json(Badge::with('employe')->get());
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'employe_id' => 'required|exists:employes,id',
-            // 'code_unique' => 'required|string',
-            'type' => 'required',
-            'actif' => 'boolean'
-        ]);
-        $code_unique = '2024INF';
-        $badge = Badge::create([
-            'employe_id' => $request->employe_id,
-            'code_unique' => $code_unique,
-            'type' => $request->type,
-            'actif' => $request->actif
-        ]);
+  
 
-        return response()->json($badge, 201);
-    }
+public function store(Request $request)
+{
+    $request->validate([
+        'employe_id' => 'required|exists:employes,id',
+        'type' => 'required|string',
+        'actif' => 'boolean'
+    ]);
+
+    $attempts = 0;
+    $maxAttempts = 10;
+
+    do {
+        $code_unique = 'MFP' . date('Y') . strtoupper(Str::random(6));
+
+        try {
+            $badge = Badge::create([
+                'employe_id' => $request->employe_id,
+                'code_unique' => $code_unique,
+                'type' => $request->type,
+                'actif' => $request->boolean('actif')
+            ]);
+
+            return response()->json($badge, 201);
+        } catch (UniqueConstraintViolationException $e) {
+            if (++$attempts >= $maxAttempts) {
+                return response()->json(['error' => 'Unable to generate unique code.'], 500);
+            }
+        }
+    } while (true);
+}
 
     public function show(Badge $badge)
     {
