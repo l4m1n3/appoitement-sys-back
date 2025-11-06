@@ -4,7 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employe;
+use App\Models\User;
+use App\Models\Badge;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EmployeController extends Controller
 {
@@ -35,9 +43,9 @@ class EmployeController extends Controller
 
     //     return response()->json($employe, 201);
     // }
-public function store(Request $request)
+         public function store(Request $request)
 {
-    // Validation des champs principaux
+    // Validation des champs
     $request->validate([
         'nom' => 'required|string|max:255',
         'prenom' => 'required|string|max:255',
@@ -51,33 +59,19 @@ public function store(Request $request)
     try {
         DB::beginTransaction();
 
-        // 1️⃣ Générer le code unique pour le badge
-        $attempts = 0;
-        $maxAttempts = 10;
-        do {
-            $code_unique = 'MFP' . date('Y') . strtoupper(Str::random(6));
-            try {
-                // On vérifie que le code n'existe pas déjà
-                if (!Badge::where('code_unique', $code_unique)->exists()) {
-                    break; // code unique OK
-                }
-            } catch (\Throwable $e) {
-                if (++$attempts >= $maxAttempts) {
-                    throw new \Exception("Impossible de générer un code unique pour le badge.");
-                }
-            }
-        } while (true);
+        // 1️⃣ Création du user
+        // On va générer un mot de passe temporaire pour le user (sera le code du badge)
+        $tempPassword = null; // sera défini après création du badge
 
-        // 2️⃣ Création de l'utilisateur avec mot de passe = code unique du badge
         $user = User::create([
             'name' => $request->nom . ' ' . $request->prenom,
             'email' => $request->email,
-            'password' => Hash::make($code_unique),
+            'password' => Hash::make('temp'), // temporaire
         ]);
 
-        // 3️⃣ Création de l'employé
+        // 2️⃣ Création de l'employé
         $employe = Employe::create([
-            'user_id' => $user->id,
+            'user_id' => $user->id, // maintenant $user existe
             'nom' => $request->nom,
             'prenom' => $request->prenom,
             'email' => $request->email,
@@ -87,22 +81,26 @@ public function store(Request $request)
             'poste_id' => $request->poste_id,
         ]);
 
-        // 4️⃣ Création du badge de type RFID
+        // 3️⃣ Création du badge
+        // $code_unique = 'MFP' . date('Y') . $employe->id;
+        $code_unique = 'MFP' . date('Y') . str_pad($employe->id, 4, '0', STR_PAD_LEFT);
         $badge = Badge::create([
             'employe_id' => $employe->id,
             'code_unique' => $code_unique,
-            'type' => 'rfid',
+            'type' => 'RFID',
             'actif' => true,
         ]);
+
+        // 4️⃣ Mettre à jour le mot de passe du user avec le code unique du badge
+        $user->update(['password' => Hash::make($code_unique)]);
 
         DB::commit();
 
         return response()->json([
-            'message' => 'Employé, User et Badge RFID créés avec succès',
+            'message' => 'Employé, User et Badge créés avec succès',
             'user' => $user,
             'employe' => $employe,
             'badge' => $badge,
-            'mot_de_passe_defaut' => $code_unique, // utile pour communiquer le mot de passe initial
         ], 201);
 
     } catch (\Throwable $e) {
@@ -113,6 +111,7 @@ public function store(Request $request)
         ], 500);
     }
 }
+
     public function show(Employe $employe)
     {
         return response()->json($employe->load(['service','poste']));

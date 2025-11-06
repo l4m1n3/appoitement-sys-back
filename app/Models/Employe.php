@@ -16,14 +16,11 @@ class Employe extends Model
         'telephone',
         'date_naissance',
         'service_id',
-        'poste_id'
+        'poste_id',
+        'user_id'
     ];
 
     // 🔗 Relations
-    public function badges()
-    {
-        return $this->hasMany(Badge::class);
-    }
 
     public function pointages()
     {
@@ -43,4 +40,10 @@ class Employe extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function badge() 
+    {
+        return $this->hasOne(Badge::class);
+    }
+
 }

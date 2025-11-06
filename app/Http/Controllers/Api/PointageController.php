@@ -24,76 +24,22 @@ class PointageController extends Controller
     /**
      * Crée un nouveau pointage avec vérification de position GPS et doublons
      */
-    // public function store(Request $request)
-    // {
-    //     $request->validate([
-    //         'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
-    //         'latitude' => 'required|numeric',
-    //         'longitude' => 'required|numeric',
-    //     ]);
-
-    //     $employe = Auth::user();
-    //     if (!$employe) {
-    //         return response()->json(['error' => 'Non authentifié'], 401);
-    //     }
-
-    //     // Récupérer le badge assigné à l'employé
-    //     $badge = Badge::where('employe_id', $employe->id)->first();
-    //     if (!$badge) {
-    //         return response()->json(['error' => 'Aucun badge assigné à cet employé'], 400);
-    //     }
-
-    //     // Vérifier dernier pointage pour éviter doublons
-    //     $dernier = Pointage::where('employe_id', $employe->id)->latest('date_heure')->first();
-    //     $type = strtoupper($request->type);
-
-    //     if ($dernier && $dernier->type === $type) {
-    //         return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
-    //     }
-
-    //     // Coordonnées de l’entreprise (exemple)
-    //     $entrepriseLat = 13.5797;
-    //     $entrepriseLng = 2.0991;
-    //     $rayon = 15000000; // mètres autorisés
-
-    //     // Calcul de distance
-    //     $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
-
-    //     if ($distance > $rayon) {
-    //         Log::warning("Tentative de pointage hors zone", [
-    //             'employe_id' => $employe->id,
-    //             'distance_m' => round($distance, 2),
-    //             'coordonnees' => [$request->latitude, $request->longitude],
-    //         ]);
-
-    //         return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
-    //     }
-
-    //     // Enregistrement du pointage
-    //     $pointage = Pointage::create([
-    //         'employe_id' => $employe->id,
-    //         'badge_id' => $badge->id,
-    //         'type' => $type,
-    //         'date_heure' => now(),
-    //         'latitude' => $request->latitude,
-    //         'longitude' => $request->longitude,
-    //     ]);
-
-    //     return response()->json([
-    //         'message' => 'Pointage enregistré avec succès',
-    //         'data' => $pointage,
-    //     ], 201);
-    // }
+   
 public function store(Request $request)
 {
-    $request->validate([
+    try {
+        //code...
+         $request->validate([
         'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
         'latitude' => 'required|numeric',
         'longitude' => 'required|numeric',
     ]);
 
-    $employe = Auth::user();
-    if (!$employe) {
+
+    $user = Auth::user();
+    $employe = Employe::where('user_id', $user->id)->first();
+
+    if (!$user) {
         return response()->json(['error' => 'Non authentifié'], 401);
     }
 
@@ -118,10 +64,15 @@ public function store(Request $request)
         return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
     }
 
+    // // Coordonnées de l’entreprise
+    // $entrepriseLat = 13.5797;
+    // $entrepriseLng = 2.0991;
+    // $rayon = 15000000; // mètres autorisés
     // Coordonnées de l’entreprise
-    $entrepriseLat = 13.5797;
-    $entrepriseLng = 2.0991;
-    $rayon = 15000000; // mètres autorisés
+$entrepriseLat = 10.57975;
+$entrepriseLng = 2.09850;
+$rayon = 100; // mètres autorisés
+
 
     // Calcul de distance
     $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
@@ -143,6 +94,13 @@ public function store(Request $request)
         'message' => 'Pointage enregistré avec succès',
         'data' => $pointage,
     ], 201);
+    } catch (\Throwable $th) {
+       // Log de l'erreur pour debug
+            Log::error('Erreur lors du pointage : ' . $th->getMessage(), [
+                'trace' => $th->getTraceAsString()
+            ]);
+    }
+   
 }
 
     /**

@@ -21,6 +21,7 @@ class Badge extends Model
     {
         return $this->belongsTo(Employe::class);
     }
+    
 
     public function pointages()
     {
