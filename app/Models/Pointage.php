@@ -9,29 +9,29 @@ class Pointage extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'employe_id',
-        'badge_id',
-        'date_heure',
-        'type',
-        'latitude',
-        'longitude',
-        'source',
-    ];
+    // app/Models/Pointage.php
+protected $fillable = [
+    'employe_id',
+    'badge_id',
+    'portique_id',
+    'type',
+    'methode',
+    'ip_address',
+    'user_agent',
+];
 
-    // 🔗 Relations
-    public function employe()
-    {
-        return $this->belongsTo(Employe::class);
-    }
+public function portique()
+{
+    return $this->belongsTo(Portique::class);
+}
 
-    public function badge()
-    {
-        return $this->belongsTo(Badge::class);
-    }
+public function employe()
+{
+    return $this->belongsTo(Employe::class);
+}
 
-    public function portique()
-    {
-        return $this->belongsTo(Portique::class);
-    }
+public function badge()
+{
+    return $this->belongsTo(Badge::class);
+}
 }

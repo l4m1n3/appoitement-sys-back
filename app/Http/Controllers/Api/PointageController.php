@@ -25,84 +25,179 @@ class PointageController extends Controller
      * Crée un nouveau pointage avec vérification de position GPS et doublons
      */
    
+// public function store(Request $request)
+// {
+//     try {
+//         //code...
+//          $request->validate([
+//         'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
+//         'latitude' => 'required|numeric',
+//         'longitude' => 'required|numeric',
+//     ]);
+
+
+//     $user = Auth::user();
+//     $employe = Employe::where('user_id', $user->id)->first();
+
+//     if (!$user) {
+//         return response()->json(['error' => 'Non authentifié'], 401);
+//     }
+
+//     // Badge assigné à l'employé
+//     $badge = Badge::where('employe_id', $employe->id)->first();
+//     if (!$badge) {
+//         return response()->json(['error' => 'Aucun badge assigné à cet employé'], 400);
+//     }
+
+//     // Normalisation du type pour PostgreSQL
+//     $typeMap = [
+//         'ENTREE' => 'entrée',
+//         'entree' => 'entrée',
+//         'SORTIE' => 'sortie',
+//         'sortie' => 'sortie',
+//     ];
+//     $type = $typeMap[$request->type];
+
+//     // Vérifier dernier pointage
+//     $dernier = Pointage::where('employe_id', $employe->id)->latest('date_heure')->first();
+//     if ($dernier && $dernier->type === $type) {
+//         return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
+//     }
+
+//     // // Coordonnées de l’entreprise
+//     // $entrepriseLat = 13.5797;
+//     // $entrepriseLng = 2.0991;
+//     // $rayon = 15000000; // mètres autorisés
+//     // Coordonnées de l’entreprise
+// $entrepriseLat = 10.57975;
+// $entrepriseLng = 2.09850;
+// $rayon = 100; // mètres autorisés
+
+
+//     // Calcul de distance
+//     $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
+//     if ($distance > $rayon) {
+//         return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
+//     }
+
+//     // Enregistrement du pointage
+//     $pointage = Pointage::create([
+//         'employe_id' => $employe->id,
+//         'badge_id' => $badge->id,
+//         'type' => $type,
+//         'date_heure' => now(),
+//         'latitude' => $request->latitude,
+//         'longitude' => $request->longitude,
+//     ]);
+
+//     return response()->json([
+//         'message' => 'Pointage enregistré avec succès',
+//         'data' => $pointage,
+//     ], 201);
+//     } catch (\Throwable $th) {
+//        // Log de l'erreur pour debug
+//             Log::error('Erreur lors du pointage : ' . $th->getMessage(), [
+//                 'trace' => $th->getTraceAsString()
+//             ]);
+//     }
+   
+// }
+
+
+/**
+ * Pointage via portique Bluetooth (SANS GPS)
+ */
 public function store(Request $request)
 {
     try {
-        //code...
-         $request->validate([
-        'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
-        'latitude' => 'required|numeric',
-        'longitude' => 'required|numeric',
-    ]);
+        // Validation
+        $request->validate([
+            'type' => 'required|in:entree,sortie,ENTREE,SORTIE',
+            'portique_mac' => 'required|string|size:17', // Format: AA:BB:CC:11:22:33
+        ]);
 
+        // Authentification
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Non authentifié'], 401);
+        }
 
-    $user = Auth::user();
-    $employe = Employe::where('user_id', $user->id)->first();
+        // Récupérer l'employé
+        $employe = Employe::where('user_id', $user->id)->first();
+        if (!$employe) {
+            return response()->json(['error' => 'Employé introuvable'], 404);
+        }
 
-    if (!$user) {
-        return response()->json(['error' => 'Non authentifié'], 401);
-    }
+        // Badge assigné
+        $badge = Badge::where('employe_id', $employe->id)->first();
+        if (!$badge) {
+            return response()->json(['error' => 'Aucun badge assigné'], 400);
+        }
 
-    // Badge assigné à l'employé
-    $badge = Badge::where('employe_id', $employe->id)->first();
-    if (!$badge) {
-        return response()->json(['error' => 'Aucun badge assigné à cet employé'], 400);
-    }
+        // Normaliser le type
+        $typeMap = ['ENTREE' => 'entrée', 'entree' => 'entrée', 'SORTIE' => 'sortie', 'sortie' => 'sortie'];
+        $type = $typeMap[strtolower($request->type)];
 
-    // Normalisation du type pour PostgreSQL
-    $typeMap = [
-        'ENTREE' => 'entrée',
-        'entree' => 'entrée',
-        'SORTIE' => 'sortie',
-        'sortie' => 'sortie',
-    ];
-    $type = $typeMap[$request->type];
+        // Vérifier le portique
+        $mac = strtoupper($request->portique_mac);
+        $portique = Portique::where('mac_address', $mac)
+            ->where('is_active', true)
+            ->first();
 
-    // Vérifier dernier pointage
-    $dernier = Pointage::where('employe_id', $employe->id)->latest('date_heure')->first();
-    if ($dernier && $dernier->type === $type) {
-        return response()->json(['error' => "Vous avez déjà effectué un pointage de type {$type}."], 400);
-    }
+        if (!$portique) {
+            return response()->json([
+                'error' => 'Portique non autorisé ou désactivé'
+            ], 403);
+        }
 
-    // // Coordonnées de l’entreprise
-    // $entrepriseLat = 13.5797;
-    // $entrepriseLng = 2.0991;
-    // $rayon = 15000000; // mètres autorisés
-    // Coordonnées de l’entreprise
-$entrepriseLat = 10.57975;
-$entrepriseLng = 2.09850;
-$rayon = 100; // mètres autorisés
+        // Vérifier doublon
+        $dernier = Pointage::where('employe_id', $employe->id)
+            ->latest('date_heure')
+            ->first();
 
+        if ($dernier && $dernier->type === $type) {
+            return response()->json([
+                'error' => "Vous avez déjà pointé en {$type} récemment"
+            ], 400);
+        }
 
-    // Calcul de distance
-    $distance = $this->distanceMetres($request->latitude, $request->longitude, $entrepriseLat, $entrepriseLng);
-    if ($distance > $rayon) {
-        return response()->json(['error' => 'Pointage impossible : hors de la zone autorisée'], 403);
-    }
+        // Créer le pointage
+        $pointage = Pointage::create([
+            'employe_id' => $employe->id,
+            'badge_id' => $badge->id,
+            'portique_id' => $portique->id,
+            'type' => $type,
+            'date_heure' => now(),
+            'methode' => 'bluetooth', // Optionnel : pour filtre futur
+        ]);
 
-    // Enregistrement du pointage
-    $pointage = Pointage::create([
-        'employe_id' => $employe->id,
-        'badge_id' => $badge->id,
-        'type' => $type,
-        'date_heure' => now(),
-        'latitude' => $request->latitude,
-        'longitude' => $request->longitude,
-    ]);
+        return response()->json([
+            'message' => 'Pointage Bluetooth enregistré !',
+            'data' => [
+                'id' => $pointage->id,
+                'type' => $type,
+                'portique' => $portique->nom,
+                'date_heure' => $pointage->date_heure->format('Y-m-d H:i:s'),
+            ]
+        ], 201);
 
-    return response()->json([
-        'message' => 'Pointage enregistré avec succès',
-        'data' => $pointage,
-    ], 201);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'error' => 'Données invalides',
+            'details' => $e->errors()
+        ], 422);
     } catch (\Throwable $th) {
-       // Log de l'erreur pour debug
-            Log::error('Erreur lors du pointage : ' . $th->getMessage(), [
-                'trace' => $th->getTraceAsString()
-            ]);
-    }
-   
-}
+        Log::error('Erreur pointage Bluetooth : ' . $th->getMessage(), [
+            'user_id' => $user?->id ?? null,
+            'mac' => $request->portique_mac ?? null,
+            'trace' => $th->getTraceAsString()
+        ]);
 
+        return response()->json([
+            'error' => 'Erreur serveur lors du pointage'
+        ], 500);
+    }
+}
     /**
      * Calcule la distance entre deux coordonnées (en mètres)
      */
